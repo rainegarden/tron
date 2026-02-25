@@ -1,73 +1,34 @@
 package app
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
+
+	"tron/pkg/layout"
 )
 
 type Model struct {
 	Width  int
 	Height int
-
-	FileTree  FileTreePlaceholder
-	Editor    EditorPlaceholder
-	Tabs      TabsPlaceholder
-	Terminal  TerminalPlaceholder
-	RunConfig RunConfigPlaceholder
-}
-
-type FileTreePlaceholder struct {
-	Width  int
-	Height int
-	Files  []string
-}
-
-type EditorPlaceholder struct {
-	Width   int
-	Height  int
-	Content string
-	Path    string
-}
-
-type TabsPlaceholder struct {
-	Width   int
-	Height  int
-	Tabs    []string
-	Active  int
-}
-
-type TerminalPlaceholder struct {
-	Width   int
-	Height  int
-	Content string
-}
-
-type RunConfigPlaceholder struct {
-	Width   int
-	Height  int
-	Configs []string
-	Active  string
+	Root   layout.Panel
 }
 
 func New() Model {
+	fileTree := layout.NewPlaceholderPanel("FileTree")
+	editor := layout.NewPlaceholderPanel("Editor")
+	terminal := layout.NewPlaceholderPanel("Terminal")
+	tabs := layout.NewPlaceholderPanel("Tabs")
+
+	editorTerminalSplit := layout.NewVerticalSplit(editor, terminal, 0.7)
+	editorTerminalSplit.SetMinSizes(5, 3)
+
+	mainSplit := layout.NewHorizontalSplit(fileTree, editorTerminalSplit, 0.2)
+	mainSplit.SetMinSizes(15, 30)
+
+	rootSplit := layout.NewVerticalSplit(tabs, mainSplit, 0.05)
+	rootSplit.SetMinSizes(1, 5)
+
 	return Model{
-		FileTree: FileTreePlaceholder{
-			Files: []string{},
-		},
-		Editor: EditorPlaceholder{
-			Content: "",
-		},
-		Tabs: TabsPlaceholder{
-			Tabs:   []string{},
-			Active: 0,
-		},
-		Terminal: TerminalPlaceholder{
-			Content: "",
-		},
-		RunConfig: RunConfigPlaceholder{
-			Configs: []string{},
-		},
+		Root: rootSplit,
 	}
 }
 
@@ -82,30 +43,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		}
-	case tea.MouseMsg:
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
-		m.FileTree.Width = msg.Width / 4
-		m.FileTree.Height = msg.Height - 2
-		m.Editor.Width = msg.Width * 3 / 4
-		m.Editor.Height = msg.Height - 4
-		m.Tabs.Width = msg.Width
-		m.Tabs.Height = 1
-		m.Terminal.Width = msg.Width * 3 / 4
-		m.Terminal.Height = msg.Height / 3
-		m.RunConfig.Width = msg.Width / 4
-		m.RunConfig.Height = msg.Height / 3
-	case FileOpenMsg, BufferChangeMsg, TabSwitchMsg, RunCommandMsg,
-		CommandCompleteMsg, FocusChangeMsg, FileTreeSelectMsg,
-		EditorSaveMsg, TerminalOutputMsg, RunConfigSelectMsg, QuitMsg:
 	}
+
+	var cmd tea.Cmd
+	if cmd = m.Root.Update(msg); cmd != nil {
+		return m, cmd
+	}
+
 	return m, nil
 }
 
 func (m Model) View() string {
-	return fmt.Sprintf(
-		"TRON IDE - %dx%d\n\n[FileTree]  [Editor]\n            [Terminal]\n[Tabs]\n[RunConfig]\n\nPress Ctrl+C to quit",
-		m.Width, m.Height,
-	)
+	if m.Width == 0 || m.Height == 0 {
+		return ""
+	}
+	return m.Root.View()
 }
