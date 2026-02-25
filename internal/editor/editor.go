@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -30,6 +31,17 @@ type Editor struct {
 	highlightedContent string
 	highlightSpans     []syntax.HighlightSpan
 	theme              *syntax.Theme
+	FilePath           string
+	Dirty              bool
+	originalContent    string
+}
+
+type EditorSavedMsg struct {
+	Path string
+}
+
+type EditorDirtyMsg struct {
+	Dirty bool
 }
 
 type EditorFocusMsg struct{}
@@ -149,6 +161,7 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				e.Cursor.Column++
 			}
 			e.clearSelection()
+			e.markDirty()
 		}
 	case tea.KeyEnter:
 		if e.hasSelection() {
@@ -158,6 +171,7 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		e.Cursor.Line++
 		e.Cursor.Column = 0
 		e.clearSelection()
+		e.markDirty()
 	case tea.KeyBackspace:
 		if e.hasSelection() {
 			e.deleteSelection()
@@ -171,6 +185,7 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		e.clearSelection()
+		e.markDirty()
 	case tea.KeyDelete:
 		if e.hasSelection() {
 			e.deleteSelection()
@@ -178,6 +193,7 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			e.Buffer.DeleteChar(e.Cursor, true)
 		}
 		e.clearSelection()
+		e.markDirty()
 	case tea.KeyLeft:
 		e.moveCursor(-1, 0, msg.Modifiers)
 	case tea.KeyRight:
@@ -218,8 +234,18 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			e.copySelection()
 		case "ctrl+v":
 			e.paste()
+			e.markDirty()
 		case "ctrl+x":
 			e.cutSelection()
+			e.markDirty()
+		case "ctrl+s":
+			if e.FilePath != "" {
+				if err := e.Save(); err == nil {
+					return e, func() tea.Msg {
+						return EditorSavedMsg{Path: e.FilePath}
+					}
+				}
+			}
 		}
 	}
 
@@ -390,6 +416,48 @@ func (e *Editor) cutSelection() {
 	}
 	e.copySelection()
 	e.deleteSelection()
+}
+
+func (e *Editor) LoadFile(path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	e.FilePath = path
+	e.SetContent(string(content))
+	e.originalContent = string(content)
+	e.Dirty = false
+	e.SetFileExtension(path)
+	return nil
+}
+
+func (e *Editor) Save() error {
+	if e.FilePath == "" {
+		return fmt.Errorf("no file path set")
+	}
+	content := e.Buffer.Content()
+	err := os.WriteFile(e.FilePath, []byte(content), 0644)
+	if err != nil {
+		return err
+	}
+	e.originalContent = content
+	e.Dirty = false
+	return nil
+}
+
+func (e *Editor) SaveAs(path string) error {
+	e.FilePath = path
+	return e.Save()
+}
+
+func (e *Editor) markDirty() {
+	if !e.Dirty {
+		e.Dirty = true
+	}
+}
+
+func (e *Editor) IsDirty() bool {
+	return e.Dirty
 }
 
 func (e *Editor) moveCursorAfterInsert(text string) {

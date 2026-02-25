@@ -6,12 +6,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"tron/internal/editor"
 	"tron/internal/filetree"
 	"tron/internal/runconfig"
 	"tron/internal/tabs"
 	"tron/internal/terminal"
 	"tron/pkg/layout"
 )
+
+type EditorPanel struct {
+	*editor.Editor
+}
+
+func (ep *EditorPanel) Update(msg tea.Msg) tea.Cmd {
+	_, cmd := ep.Editor.Update(msg)
+	return cmd
+}
 
 type headerPanel struct {
 	tabs   *tabs.TabBar
@@ -107,15 +117,16 @@ type Model struct {
 	RunBar   *runconfig.RunBar
 	header   *headerPanel
 	Terminal *terminal.Terminal
+	Editor   *EditorPanel
 }
 
 func New() Model {
 	ft := filetree.New(".")
-	editor := layout.NewPlaceholderPanel("Editor")
+	ed := &EditorPanel{editor.New()}
 	term := terminal.New()
 	header := newHeaderPanel(".")
 
-	editorTerminalSplit := layout.NewVerticalSplit(editor, term, 0.7)
+	editorTerminalSplit := layout.NewVerticalSplit(ed, term, 0.7)
 	editorTerminalSplit.SetMinSizes(5, 3)
 
 	mainSplit := layout.NewHorizontalSplit(ft, editorTerminalSplit, 0.2)
@@ -131,6 +142,7 @@ func New() Model {
 		RunBar:   header.runBar,
 		header:   header,
 		Terminal: term,
+		Editor:   ed,
 	}
 }
 
@@ -149,13 +161,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 	case filetree.FileSelectedMsg:
+		if !msg.IsDir {
+			return m, m.openFile(msg.Path)
+		}
 	case tabs.TabSwitchedMsg:
 		m.Tabs.SetActive(msg.Index)
+		return m, m.switchToTab(msg.Index)
 	case tabs.TabClosedMsg:
 		m.Tabs.CloseTab(msg.Index)
 	case tabs.NewTabMsg:
 	case runconfig.RunCommandMsg:
 		return m, m.handleRunCommand(msg)
+	case editor.EditorSavedMsg:
+		m.Tabs.MarkDirty(m.Tabs.FindTab(msg.Path), false)
 	}
 
 	var cmd tea.Cmd
@@ -163,7 +181,53 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	m.syncEditorDirtyState()
+
 	return m, nil
+}
+
+func (m *Model) openFile(path string) tea.Cmd {
+	idx := m.Tabs.FindTab(path)
+	if idx >= 0 {
+		m.Tabs.SetActive(idx)
+		return m.switchToTab(idx)
+	}
+
+	m.Tabs.AddTab(path)
+	m.Tabs.SetActive(m.Tabs.TabCount() - 1)
+
+	if err := m.Editor.LoadFile(path); err != nil {
+		m.Editor.SetContent("")
+		m.Editor.FilePath = path
+	}
+
+	return nil
+}
+
+func (m *Model) switchToTab(index int) tea.Cmd {
+	tab := m.Tabs.GetTab(index)
+	if tab == nil {
+		return nil
+	}
+
+	if m.Editor.FilePath != tab.Path {
+		if err := m.Editor.LoadFile(tab.Path); err != nil {
+			m.Editor.SetContent("")
+			m.Editor.FilePath = tab.Path
+		}
+	}
+
+	return nil
+}
+
+func (m *Model) syncEditorDirtyState() {
+	if m.Editor.FilePath == "" {
+		return
+	}
+	idx := m.Tabs.FindTab(m.Editor.FilePath)
+	if idx >= 0 {
+		m.Tabs.MarkDirty(idx, m.Editor.IsDirty())
+	}
 }
 
 func (m Model) handleRunCommand(msg runconfig.RunCommandMsg) tea.Cmd {
@@ -180,12 +244,7 @@ func (m Model) handleRunCommand(msg runconfig.RunCommandMsg) tea.Cmd {
 	}
 
 	m.Terminal.RunCommand(cmdStr, cwd)
-	return func() tea.Msg {
-		return RunCommandMsg{
-			Command: msg.Config.Command,
-			Args:    msg.Config.Args,
-		}
-	}
+	return nil
 }
 
 func (m Model) View() string {

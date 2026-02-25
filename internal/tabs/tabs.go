@@ -226,9 +226,11 @@ func (t *TabBar) renderTab(tab *Tab, active bool) string {
 			Padding(0, 1)
 	}
 
+	dirtyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af"))
+
 	displayName := tab.DisplayName
 	if tab.Dirty {
-		displayName = "* " + displayName
+		displayName = dirtyStyle.Render("●") + " " + displayName
 	}
 
 	maxWidth := t.maxTabWidth - 4
@@ -257,9 +259,11 @@ func (t *TabBar) renderNewButton() string {
 }
 
 func (t *TabBar) calculateTabWidth(tab *Tab) int {
+	dirtyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af"))
+
 	displayName := tab.DisplayName
 	if tab.Dirty {
-		displayName = "* " + displayName
+		displayName = dirtyStyle.Render("●") + " " + displayName
 	}
 
 	maxWidth := t.maxTabWidth - 4
@@ -270,7 +274,7 @@ func (t *TabBar) calculateTabWidth(tab *Tab) int {
 		displayName = displayName[:maxWidth-1] + "…"
 	}
 
-	return len(displayName) + 6
+	return lipgloss.Width(displayName) + 6
 }
 
 func (t *TabBar) getTabBounds(index int) (int, int) {
