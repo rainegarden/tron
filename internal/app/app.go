@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"tron/internal/filetree"
+	"tron/internal/tabs"
 	"tron/pkg/layout"
 )
 
@@ -12,13 +13,14 @@ type Model struct {
 	Height   int
 	Root     layout.Panel
 	FileTree *filetree.FileTree
+	Tabs     *tabs.TabBar
 }
 
 func New() Model {
 	ft := filetree.New(".")
 	editor := layout.NewPlaceholderPanel("Editor")
 	terminal := layout.NewPlaceholderPanel("Terminal")
-	tabs := layout.NewPlaceholderPanel("Tabs")
+	tabBar := tabs.New()
 
 	editorTerminalSplit := layout.NewVerticalSplit(editor, terminal, 0.7)
 	editorTerminalSplit.SetMinSizes(5, 3)
@@ -26,12 +28,13 @@ func New() Model {
 	mainSplit := layout.NewHorizontalSplit(ft, editorTerminalSplit, 0.2)
 	mainSplit.SetMinSizes(15, 30)
 
-	rootSplit := layout.NewVerticalSplit(tabs, mainSplit, 0.05)
+	rootSplit := layout.NewVerticalSplit(tabBar, mainSplit, 0.05)
 	rootSplit.SetMinSizes(1, 5)
 
 	return Model{
 		Root:     rootSplit,
 		FileTree: ft,
+		Tabs:     tabBar,
 	}
 }
 
@@ -50,6 +53,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 	case filetree.FileSelectedMsg:
+	case tabs.TabSwitchedMsg:
+	case tabs.TabClosedMsg:
+		m.Tabs.CloseTab(msg.Index)
+	case tabs.NewTabMsg:
 	}
 
 	var cmd tea.Cmd
