@@ -3,17 +3,19 @@ package app
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"tron/internal/filetree"
 	"tron/pkg/layout"
 )
 
 type Model struct {
-	Width  int
-	Height int
-	Root   layout.Panel
+	Width    int
+	Height   int
+	Root     layout.Panel
+	FileTree *filetree.FileTree
 }
 
 func New() Model {
-	fileTree := layout.NewPlaceholderPanel("FileTree")
+	ft := filetree.New(".")
 	editor := layout.NewPlaceholderPanel("Editor")
 	terminal := layout.NewPlaceholderPanel("Terminal")
 	tabs := layout.NewPlaceholderPanel("Tabs")
@@ -21,14 +23,15 @@ func New() Model {
 	editorTerminalSplit := layout.NewVerticalSplit(editor, terminal, 0.7)
 	editorTerminalSplit.SetMinSizes(5, 3)
 
-	mainSplit := layout.NewHorizontalSplit(fileTree, editorTerminalSplit, 0.2)
+	mainSplit := layout.NewHorizontalSplit(ft, editorTerminalSplit, 0.2)
 	mainSplit.SetMinSizes(15, 30)
 
 	rootSplit := layout.NewVerticalSplit(tabs, mainSplit, 0.05)
 	rootSplit.SetMinSizes(1, 5)
 
 	return Model{
-		Root: rootSplit,
+		Root:     rootSplit,
+		FileTree: ft,
 	}
 }
 
@@ -46,6 +49,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+	case filetree.FileSelectedMsg:
 	}
 
 	var cmd tea.Cmd
