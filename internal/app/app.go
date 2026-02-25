@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -171,6 +170,16 @@ func (m Model) handleRunCommand(msg runconfig.RunCommandMsg) tea.Cmd {
 	if msg.Config == nil {
 		return nil
 	}
+	cmdParts := []string{msg.Config.Command}
+	cmdParts = append(cmdParts, msg.Config.Args...)
+	cmdStr := strings.Join(cmdParts, " ")
+
+	cwd := msg.Config.WorkingDir
+	if cwd == "" {
+		cwd = "."
+	}
+
+	m.Terminal.RunCommand(cmdStr, cwd)
 	return func() tea.Msg {
 		return RunCommandMsg{
 			Command: msg.Config.Command,

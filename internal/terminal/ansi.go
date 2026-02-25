@@ -1,0 +1,9 @@
+package terminal
+
+import "regexp"
+
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+func StripANSI(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
