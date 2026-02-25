@@ -23,6 +23,15 @@ func (ep *EditorPanel) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+type TerminalPanel struct {
+	*terminal.Terminal
+}
+
+func (tp *TerminalPanel) Update(msg tea.Msg) tea.Cmd {
+	_, cmd := tp.Terminal.Update(msg)
+	return cmd
+}
+
 type headerPanel struct {
 	tabs   *tabs.TabBar
 	runBar *runconfig.RunBar
@@ -45,10 +54,10 @@ func (h *headerPanel) Init() tea.Cmd {
 func (h *headerPanel) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 
-	if cmd := h.tabs.Update(msg); cmd != nil {
+	if _, cmd := h.tabs.Update(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-	if cmd := h.runBar.Update(msg); cmd != nil {
+	if _, cmd := h.runBar.Update(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -90,11 +99,11 @@ func (h *headerPanel) View() string {
 	)
 }
 
-func (h *headerPanel) SetSize(w, h int) {
+func (h *headerPanel) SetSize(w, height int) {
 	h.width = w
-	h.height = h
-	h.tabs.SetSize(w, h)
-	h.runBar.SetSize(w, h)
+	h.height = height
+	h.tabs.SetSize(w, height)
+	h.runBar.SetSize(w, height)
 }
 
 func makeSpacer(n int) string {
@@ -116,14 +125,14 @@ type Model struct {
 	Tabs     *tabs.TabBar
 	RunBar   *runconfig.RunBar
 	header   *headerPanel
-	Terminal *terminal.Terminal
+	Terminal *TerminalPanel
 	Editor   *EditorPanel
 }
 
 func New() Model {
 	ft := filetree.New(".")
 	ed := &EditorPanel{editor.New()}
-	term := terminal.New()
+	term := &TerminalPanel{terminal.New()}
 	header := newHeaderPanel(".")
 
 	editorTerminalSplit := layout.NewVerticalSplit(ed, term, 0.7)

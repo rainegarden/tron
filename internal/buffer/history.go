@@ -31,9 +31,9 @@ func (a *InsertStringAction) Apply(b *Buffer) {
 }
 
 func (a *InsertStringAction) Undo(b *Buffer) {
-	line, col := a.Line, a.Col
+	pos := Position{Line: a.Line, Col: a.Col}
 	for range a.Content {
-		line, col = b.deleteAt(line, col)
+		pos = b.deleteAt(pos.Line, pos.Col)
 	}
 }
 

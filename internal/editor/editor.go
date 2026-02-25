@@ -195,33 +195,33 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		e.clearSelection()
 		e.markDirty()
 	case tea.KeyLeft:
-		e.moveCursor(-1, 0, msg.Modifiers)
+		e.moveCursor(-1, 0, e.isShiftPressed(msg))
 	case tea.KeyRight:
-		e.moveCursor(1, 0, msg.Modifiers)
+		e.moveCursor(1, 0, e.isShiftPressed(msg))
 	case tea.KeyUp:
-		e.moveCursor(0, -1, msg.Modifiers)
+		e.moveCursor(0, -1, e.isShiftPressed(msg))
 	case tea.KeyDown:
-		e.moveCursor(0, 1, msg.Modifiers)
+		e.moveCursor(0, 1, e.isShiftPressed(msg))
 	case tea.KeyHome:
-		if msg.Modifiers == tea.ModAlt || msg.Modifiers == tea.ModCtrl {
+		if msg.Alt {
 			e.Cursor.Line = 0
 			e.Cursor.Column = 0
 		} else {
 			e.Cursor.Column = 0
 		}
-		if msg.Modifiers == tea.ModShift {
+		if e.isShiftPressed(msg) {
 			e.extendSelection()
 		} else {
 			e.clearSelection()
 		}
 	case tea.KeyEnd:
-		if msg.Modifiers == tea.ModAlt || msg.Modifiers == tea.ModCtrl {
+		if msg.Alt {
 			e.Cursor.Line = e.Buffer.LineCount() - 1
 			e.Cursor.Column = e.Buffer.LineLength(e.Cursor.Line)
 		} else {
 			e.Cursor.Column = e.Buffer.LineLength(e.Cursor.Line)
 		}
-		if msg.Modifiers == tea.ModShift {
+		if e.isShiftPressed(msg) {
 			e.extendSelection()
 		} else {
 			e.clearSelection()
@@ -288,8 +288,8 @@ func (e *Editor) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return e, nil
 }
 
-func (e *Editor) moveCursor(dx, dy int, mods tea.KeyMod) {
-	if mods == tea.ModShift {
+func (e *Editor) moveCursor(dx, dy int, shift bool) {
+	if shift {
 		if !e.hasSelection() {
 			e.Selection.Start = e.Cursor
 		}
@@ -326,11 +326,17 @@ func (e *Editor) moveCursor(dx, dy int, mods tea.KeyMod) {
 		}
 	}
 
-	if mods == tea.ModShift {
+	if shift {
 		e.Selection.End = e.Cursor
 	} else {
 		e.clearSelection()
 	}
+}
+
+func (e *Editor) isShiftPressed(msg tea.KeyMsg) bool {
+	s := msg.String()
+	return len(s) > 6 && s[:6] == "shift+" || 
+		len(s) > 6 && s[len(s)-6:] == "+shift"
 }
 
 func (e *Editor) ensureCursorValid() {

@@ -131,16 +131,14 @@ func (t *TabBar) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 
 	for i := t.scrollOffset; i < len(t.tabs); i++ {
-		tab := t.tabs[i]
-		tabWidth := t.calculateTabWidth(tab)
 		tabStart, tabEnd := t.getTabBounds(i)
 
 		if x >= tabStart && x < tabEnd {
 			closeBtnStart := tabEnd - 3
 			if x >= closeBtnStart && x < tabEnd {
-				return t, t.closeTabCmd(i, tab.Path)
+				return t, t.closeTabCmd(i, t.tabs[i].Path)
 			}
-			return t, t.switchTabCmd(i, tab.Path)
+			return t, t.switchTabCmd(i, t.tabs[i].Path)
 		}
 	}
 
