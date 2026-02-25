@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+
+set timeout 10
+
+spawn ./tron
+
+expect {
+    timeout {
+        puts "\n=== TIMEOUT after 10 seconds ==="
+        exit 1
+    }
+    eof {
+        puts "\n=== PROGRAM ENDED ==="
+        exit 0
+    }
+}

@@ -1,6 +1,8 @@
 package layout
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -216,20 +218,53 @@ func (s *Split) View() string {
 		dividerStyle = dividerStyle.Background(lipgloss.Color("238"))
 	}
 
-	var divider string
-	if s.Direction == Horizontal {
-		divider = dividerStyle.Width(s.dividerSize).Height(s.height).Render("")
-	} else {
-		divider = dividerStyle.Width(s.width).Height(s.dividerSize).Render("")
-	}
-
 	firstView := s.First.View()
 	secondView := s.Second.View()
 
 	if s.Direction == Horizontal {
-		return lipgloss.JoinHorizontal(lipgloss.Top, firstView, divider, secondView)
+		return s.joinHorizontal(firstView, secondView, dividerStyle)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, firstView, divider, secondView)
+	return lipgloss.JoinVertical(lipgloss.Left, firstView, dividerStyle.Height(s.dividerSize).Render(""), secondView)
+}
+
+func (s *Split) joinHorizontal(left, right string, dividerStyle lipgloss.Style) string {
+	leftLines := strings.Split(left, "\n")
+	rightLines := strings.Split(right, "\n")
+
+	for len(leftLines) < s.height {
+		leftLines = append(leftLines, "")
+	}
+	for len(rightLines) < s.height {
+		rightLines = append(rightLines, "")
+	}
+
+	leftWidth := 0
+	if s.position > 0 {
+		leftWidth = s.position
+	}
+	rightWidth := s.width - s.position - s.dividerSize
+	if rightWidth < 0 {
+		rightWidth = 0
+	}
+
+	divider := dividerStyle.Width(s.dividerSize).Render("")
+
+	var result []string
+	for i := 0; i < s.height; i++ {
+		leftLine := leftLines[i]
+		rightLine := rightLines[i]
+
+		if len(leftLine) > leftWidth {
+			leftLine = leftLine[:leftWidth]
+		}
+
+		paddedLeft := lipgloss.NewStyle().Width(leftWidth).Render(leftLine)
+		paddedRight := lipgloss.NewStyle().Width(rightWidth).Render(rightLine)
+
+		result = append(result, paddedLeft+divider+paddedRight)
+	}
+
+	return strings.Join(result, "\n")
 }
 
 func (s *Split) SetMinSizes(minFirst, minSecond int) {
