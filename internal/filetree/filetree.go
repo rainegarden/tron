@@ -298,14 +298,17 @@ func (ft *FileTree) View() string {
 	for i := ft.ScrollOffset; i < endIdx; i++ {
 		item := ft.flattened[i]
 		line := ft.renderItem(item, i == ft.SelectedIndex)
-		if len(line) > ft.Width {
+		visualWidth := lipgloss.Width(line)
+		if visualWidth > ft.Width {
 			line = line[:ft.Width]
+		} else if visualWidth < ft.Width {
+			line += strings.Repeat(" ", ft.Width-visualWidth)
 		}
 		lines = append(lines, line)
 	}
 
 	for len(lines) < ft.Height {
-		lines = append(lines, "")
+		lines = append(lines, strings.Repeat(" ", ft.Width))
 	}
 
 	return strings.Join(lines, "\n")

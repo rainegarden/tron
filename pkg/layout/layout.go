@@ -231,17 +231,22 @@ func (s *Split) joinHorizontal(left, right string, dividerStyle lipgloss.Style) 
 	leftLines := strings.Split(left, "\n")
 	rightLines := strings.Split(right, "\n")
 
-	for len(leftLines) < s.height {
+	maxLines := s.height
+	if len(leftLines) > maxLines {
+		maxLines = len(leftLines)
+	}
+	if len(rightLines) > maxLines {
+		maxLines = len(rightLines)
+	}
+
+	for len(leftLines) < maxLines {
 		leftLines = append(leftLines, "")
 	}
-	for len(rightLines) < s.height {
+	for len(rightLines) < maxLines {
 		rightLines = append(rightLines, "")
 	}
 
-	leftWidth := 0
-	if s.position > 0 {
-		leftWidth = s.position
-	}
+	leftWidth := s.position
 	rightWidth := s.width - s.position - s.dividerSize
 	if rightWidth < 0 {
 		rightWidth = 0
@@ -254,14 +259,40 @@ func (s *Split) joinHorizontal(left, right string, dividerStyle lipgloss.Style) 
 		leftLine := leftLines[i]
 		rightLine := rightLines[i]
 
-		if len(leftLine) > leftWidth {
-			leftLine = leftLine[:leftWidth]
+		leftVisualWidth := lipgloss.Width(leftLine)
+		if leftVisualWidth < leftWidth {
+			leftLine += strings.Repeat(" ", leftWidth-leftVisualWidth)
+		} else if leftVisualWidth > leftWidth && leftWidth > 0 {
+			runes := []rune(leftLine)
+			visualPos := 0
+			resultRunes := make([]rune, 0, len(runes))
+			inEscape := false
+			for _, r := range runes {
+				if r == '\x1b' {
+					inEscape = true
+				}
+				if inEscape {
+					resultRunes = append(resultRunes, r)
+					if r == 'm' {
+						inEscape = false
+					}
+					continue
+				}
+				visualPos++
+				if visualPos > leftWidth {
+					break
+				}
+				resultRunes = append(resultRunes, r)
+			}
+			leftLine = string(resultRunes)
 		}
 
-		paddedLeft := lipgloss.NewStyle().Width(leftWidth).Render(leftLine)
-		paddedRight := lipgloss.NewStyle().Width(rightWidth).Render(rightLine)
+		rightVisualWidth := lipgloss.Width(rightLine)
+		if rightVisualWidth < rightWidth {
+			rightLine += strings.Repeat(" ", rightWidth-rightVisualWidth)
+		}
 
-		result = append(result, paddedLeft+divider+paddedRight)
+		result = append(result, leftLine+divider+rightLine)
 	}
 
 	return strings.Join(result, "\n")
