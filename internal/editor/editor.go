@@ -2,11 +2,13 @@ package editor
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"tron/internal/syntax"
 )
 
 type Editor struct {
@@ -24,6 +26,10 @@ type Editor struct {
 	focused            bool
 	anchor             Position
 	selectionActive    bool
+	fileExt            string
+	highlightedContent string
+	highlightSpans     []syntax.HighlightSpan
+	theme              *syntax.Theme
 }
 
 type EditorFocusMsg struct{}
@@ -43,6 +49,7 @@ func New() *Editor {
 		LineNumWidth:    4,
 		ShowCursor:      true,
 		focused:         true,
+		theme:           syntax.GetTheme(),
 	}
 }
 
@@ -69,6 +76,25 @@ func (e *Editor) SetContent(content string) {
 	e.Viewport.Y = 0
 	e.Viewport.X = 0
 	e.clearSelection()
+	e.updateHighlighting()
+}
+
+func (e *Editor) SetFileExtension(ext string) {
+	e.fileExt = ext
+	e.updateHighlighting()
+}
+
+func (e *Editor) SetFilePath(path string) {
+	e.fileExt = filepath.Ext(path)
+	e.updateHighlighting()
+}
+
+func (e *Editor) updateHighlighting() {
+	content := e.Buffer.Content()
+	if content != e.highlightedContent {
+		e.highlightedContent = content
+		e.highlightSpans = syntax.Highlight(content, e.fileExt)
+	}
 }
 
 func (e *Editor) Content() string {
@@ -199,6 +225,7 @@ func (e *Editor) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	e.ensureCursorValid()
 	e.Viewport.EnsureCursorVisible(e.Cursor, e.Buffer.LineLength(e.Cursor.Line))
+	e.updateHighlighting()
 	return e, nil
 }
 
@@ -423,18 +450,18 @@ func (e *Editor) renderLine(sb *strings.Builder, lineNum int) {
 	}
 
 	startCol, _ := e.Viewport.VisibleColumnRange()
-	if startCol > 0 && startCol < len(line) {
-		line = line[startCol:]
-	} else if startCol >= len(line) {
-		line = ""
-	}
+
+	lineStart := e.lineOffset(lineNum)
+	lineEnd := lineStart + len(line)
+
+	line = e.applyHighlighting(line, lineStart, lineEnd, startCol)
 
 	if len(line) > e.Viewport.Width {
 		line = line[:e.Viewport.Width]
 	}
 
 	if e.hasSelection() && e.isLineInSelection(lineNum) {
-		line = e.renderLineWithSelection(line, lineNum, startCol)
+		line = e.renderLineWithSelectionRaw(line, lineNum, startCol)
 	}
 
 	if e.Cursor.Line == lineNum && e.ShowCursor && e.focused {
@@ -444,12 +471,81 @@ func (e *Editor) renderLine(sb *strings.Builder, lineNum int) {
 	sb.WriteString(line)
 }
 
+func (e *Editor) lineOffset(lineNum int) int {
+	offset := 0
+	lines := e.Buffer.Lines()
+	for i := 0; i < lineNum && i < len(lines); i++ {
+		offset += len(lines[i]) + 1
+	}
+	return offset
+}
+
+func (e *Editor) applyHighlighting(line string, lineStart, lineEnd, startCol int) string {
+	if len(e.highlightSpans) == 0 {
+		if startCol > 0 && startCol < len(line) {
+			return line[startCol:]
+		} else if startCol >= len(line) {
+			return ""
+		}
+		return line
+	}
+
+	var result strings.Builder
+	linePos := 0
+
+	for _, span := range e.highlightSpans {
+		if span.End <= lineStart {
+			continue
+		}
+		if span.Start >= lineEnd {
+			break
+		}
+
+		spanStartInLine := span.Start - lineStart
+		spanEndInLine := span.End - lineStart
+
+		if spanStartInLine < 0 {
+			spanStartInLine = 0
+		}
+		if spanEndInLine > len(line) {
+			spanEndInLine = len(line)
+		}
+
+		if spanStartInLine >= len(line) {
+			continue
+		}
+
+		if spanStartInLine > linePos {
+			result.WriteString(line[linePos:spanStartInLine])
+		}
+
+		text := line[spanStartInLine:spanEndInLine]
+		style := e.theme.StyleForToken(span.TokenType)
+		result.WriteString(style.Render(text))
+
+		linePos = spanEndInLine
+	}
+
+	if linePos < len(line) {
+		result.WriteString(line[linePos:])
+	}
+
+	highlighted := result.String()
+
+	if startCol > 0 && startCol < len(highlighted) {
+		return highlighted[startCol:]
+	} else if startCol >= len(highlighted) {
+		return ""
+	}
+	return highlighted
+}
+
 func (e *Editor) isLineInSelection(lineNum int) bool {
 	norm := e.Selection.Normalized()
 	return lineNum >= norm.Start.Line && lineNum <= norm.End.Line
 }
 
-func (e *Editor) renderLineWithSelection(line string, lineNum, startCol int) string {
+func (e *Editor) renderLineWithSelectionRaw(line string, lineNum, startCol int) string {
 	norm := e.Selection.Normalized()
 
 	start := 0
@@ -493,18 +589,4 @@ func (e *Editor) renderCursor(char string) string {
 		return lipgloss.NewStyle().Underline(true).Render(char)
 	}
 	return char
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
